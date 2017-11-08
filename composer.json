@@ -1,0 +1,28 @@
+{
+    "name": "mods/form",
+    "description": "A basic framework agnostic form building package with a few extra niceties like remembering old input and retrieving error messages.",
+    "authors": [
+        {
+            "name": "Sunel Tr",
+            "email": "sunelbe@gmail.com"
+        }
+    ],
+    "license": "MIT",
+    "require": {
+        "php": ">=5.4.0",
+        "erusev/parsedown": "^1.6"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "3.7.*",
+        "mockery/mockery": "~0.9"
+    },
+    "autoload": {
+        "psr-4": {
+            "Mods\\Form\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "classmap": ["tests/"]
+    },
+    "minimum-stability": "dev"
+}
