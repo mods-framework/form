@@ -2,7 +2,7 @@
 
 namespace Mods\Form\Elements;
 
-class FormOpen extends Element
+class Action extends Element
 {
     protected $attributes = [
         'method' => 'POST',
@@ -12,6 +12,13 @@ class FormOpen extends Element
     protected $token;
 
     protected $hiddenMethod;
+
+    public static function make($method = 'get')
+    {
+        $method = strtolower($method);
+        
+        return (new static())->$method();
+    }
 
     public function render()
     {

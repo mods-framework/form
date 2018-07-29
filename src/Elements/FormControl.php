@@ -2,8 +2,12 @@
 
 namespace Mods\Form\Elements;
 
+use Mods\Form\Form;
+
 abstract class FormControl extends Element
 {
+    protected $form;
+
     protected $label;
 
     protected $validationRules;
@@ -17,6 +21,21 @@ abstract class FormControl extends Element
         if ($name !== null) {
             $this->setName($name);
         }
+    }
+
+    public static function make($name)
+    {
+        return new static($name);
+    }
+
+    public function setForm(Form $form)
+    {
+        $this->form = $form;
+    }
+
+    public function getForm()
+    {
+        return $this->form;
     }
 
     public function group($group)
@@ -43,7 +62,7 @@ abstract class FormControl extends Element
 
     public function getLabel()
     {
-        if(is_null($this->label)){
+        if (is_null($this->label)) {
             return '';
         }
         return $this->label;
@@ -150,5 +169,27 @@ abstract class FormControl extends Element
         $this->removeAttribute('autofocus');
 
         return $this;
+    }
+
+    /**
+    * Check if the field has error.
+    *
+    * @param string $field
+    * @return bool
+    */
+    public function hasError()
+    {
+        return $this->form->hasError($this->getName());
+    }
+
+    /**
+    * Get the field error.
+    *
+    * @param string $field
+    * @return string
+    */
+    public function getError()
+    {
+        return $this->form->getError($this->getName());
     }
 }

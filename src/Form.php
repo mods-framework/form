@@ -3,42 +3,28 @@
 namespace Mods\Form;
 
 use Closure;
+use Illuminate\Http\Request;
+use Illuminate\Contracts\Session\Session;
 use Mods\Form\Elements\Element;
 
 abstract class Form
 {
-	 /**
-     * @var FormBuilder
-     */
-    protected $formBuilder;
+    /**
+    * @var Request
+    */
+    protected $request;
 
-	/**
+    /**
+    * @var Session
+    */
+    protected $session;
+
+    /**
      * All fields that are added.
      *
      * @var array
      */
     protected $fields = [];
-
-    /**
-     * Model to use.
-     *
-     * @var array
-     */
-    protected $model = [];
-
-    /**
-     * Model to use.
-     *
-     * @var mixed
-     */
-    protected $formOpen;
-
-    /**
-     * Model to use.
-     *
-     * @var string
-     */
-    protected $formClose;
 
     /**
      * Form Settings.
@@ -57,40 +43,35 @@ abstract class Form
     /**
      * Intilize the form.
      *
-     * @param FormBuilder $formBuilder
+     * @param Request $request
      * @return void
      */
-    public function __construct(FormBuilder $formBuilder)
+    public function __construct(Request $request, Session $session)
     {
-        $this->formBuilder = $formBuilder;
+        $this->request = $request;
+        $this->session = $session;
     }
 
     /**
-     * Add the fileds related to the form.
-     *
-     * @return void
-     */
-	abstract protected function buildForm();
-
-    /**
-     * Render the form.
+     * Get the form action.
      *
      * @return array
      */
-	public function build()
-	{
-		$this->buildForm();
+    abstract public function open();
 
-        $this->extendForm();
+    /**
+     * Get the fields for the form.
+     *
+     * @return array
+     */
+    abstract public function fields();
 
-        $form = [
-            'formOpen' => $this->formOpen,
-            'formFields' => $this->fields,
-            'formClose' =>  $this->formClose
-        ];
-
-		return $form;
-	}
+    /**
+     * Get the form actions.
+     *
+     * @return array
+     */
+    abstract public function actions();
 
     /**
      * Register a callable for extending the form
@@ -99,22 +80,34 @@ abstract class Form
      */
     public static function extend(Closure $callable)
     {
-        static::$extendFields[] = $callable;
-    }
-
-    /**
-     * Extends the form for addtional fields
-     *
-     * @return void
-     */
-    protected function extendForm() {
-        foreach(static::$extendFields as $callable) {
-           $callable($this);
+        if (!isset(static::$extendFields[static::class])) {
+            static::$extendFields[static::class] = [];
         }
+        static::$extendFields[static::class][] = $callable;
     }
 
     /**
-     * Retrive the validation rules that 
+     * Render the form.
+     *
+     * @return array
+     */
+    public function build()
+    {
+        $this->buildForm();
+
+        $this->extendForm();
+
+        $this->readForm();
+
+        return [
+            'formFields' => $this->fields,
+            'formOpen' => $this->open(),
+            'formActions' => $this->actions()
+        ];
+    }
+
+    /**
+     * Retrive the validation rules that
      * are added to the form.
      *
      * @return array
@@ -127,115 +120,94 @@ abstract class Form
         
         $rules = [];
 
-        foreach ($this->fields as $field) {
-            if(!is_null($field->getRules())) {
+        foreach ($this->fields() as $field) {
+            if (!is_null($field->getRules())) {
                 $rules[$field->getName()] = $field->getRules();
             }
-        }     
+        }
 
         return $rules;
     }
 
     /**
-     * Add or Retrive Settings of the form.
+     * Add a FormField to the form's fields.
      *
-     * @param array|null $settings
-     * @return array|Form
-     */
-    public function settings($settings = null)
-    {
-        if(is_null($settings)) {
-            return $this->settings;
-        }
-
-        $this->settings = $settings;
-        return $this;
-    }
-
-    /**
-     * Get the field error.
-     *  
-     * @param string $field
-     * @return string
-     */
-    public function getError($field)
-    {
-        return $this->formBuilder->getError($field);
-    }
-
-    /**
-    * Check if the field has error.
-    *  
-    * @param string $field
-    * @return bool
-    */
-    public function hasError($field)
-    {
-        return $this->formBuilder->hasError($field);
-    }
-
-    /**
-     * Create Form open
-     *
-     * @param Closure $callable
-     * @return Form
-     */
-    public function open(Closure $callable)
-    {
-        $open = $this->formBuilder->open();
-
-        $callable($open);
-
-        $this->formOpen = $open;
-
-        return $this;
-    }
-
-    /**
-     * Create Form close
-     *
-     * @param Closure $callable
-     * @return Form
-     */
-    public function close()
-    {
-        $close = $this->formBuilder->close();
-
-        $this->formClose = $close;
-
-        return $this;
-    }
-
-	 /**
-     * Create a new field and add it to the form.
-     *
-     * @param string $name
-     * @param string $type
-     * @param Closure $callable
+     * @param FormField $field
      * @return $this
      */
-    public function add($name, $type = 'text', Closure $callable)
+    public function addField(Element $field)
     {
-        $this->addField($this->makeField($name, $type, $callable));
+        if ($field->getType() == 'radio') {
+            $this->fields[$field->getId()] = $field;
+            $field->group($field->getName());
+        } else {
+            $this->fields[$field->getName()] = $field;
+        }
         return $this;
+    }
+
+    /**
+     * Add the fileds related to the form.
+     *
+     * @return void
+     */
+    private function buildForm()
+    {
+        foreach ($this->fields() as $field) {
+            $this->addField($field);
+        }
+    }
+
+    /**
+     * Extends the form for addtional fields
+     *
+     * @return void
+     */
+    private function extendForm()
+    {
+        if (!isset(static::$extendFields[static::class])) {
+            return;
+        }
+
+        foreach (static::$extendFields[static::class] as $callable) {
+            $callable($this);
+        }
+    }
+
+    /**
+     * Extends the form for addtional fields
+     *
+     * @return void
+     */
+    private function readForm()
+    {
+        foreach ($this->fields as $field) {
+            $field->setForm($this);
+
+            if ($field->hasError()) {
+                $field->addClass('is-invalid');
+            }
+
+
+            if ($old = $this->request->old($field->getName())) {
+                $field->value($old);
+            }
+        }
     }
 
     /**
      * Add field before another field.
      *
-     * @param string  $name         Name of the field before which new field is added.
-     * @param string  $fieldName    Field name which will be added.
-     * @param string  $type
-     * @param Closure $callable
+     * @param FormField $field
      * @return $this
      */
-    public function addBefore($name, $fieldName, $type = 'text', Closure $callable)
+    public function addBefore($name, Element $field)
     {
         $offset = array_search($name, array_keys($this->fields));
         $beforeFields = array_slice($this->fields, 0, $offset);
         $afterFields = array_slice($this->fields, $offset);
         $this->fields = $beforeFields;
-        $this->add($fieldName, $type, $callable);
+        $this->addField($field);
         $this->fields += $afterFields;
         return $this;
     }
@@ -243,19 +215,16 @@ abstract class Form
     /**
      * Add field before another field.
      *
-     * @param string  $name         Name of the field after which new field is added.
-     * @param string  $fieldName    Field name which will be added.
-     * @param string  $type
-     * @param Closure $callable
+     * @param FormField $field
      * @return $this
      */
-    public function addAfter($name, $fieldName, $type = 'text', Closure $callable)
+    public function addAfter($name, Element $field)
     {
         $offset = array_search($name, array_keys($this->fields));
         $beforeFields = array_slice($this->fields, 0, $offset + 1);
         $afterFields = array_slice($this->fields, $offset + 1);
         $this->fields = $beforeFields;
-        $this->add($fieldName, $type, $callable);
+        $this->addField($field);
         $this->fields += $afterFields;
         return $this;
     }
@@ -275,40 +244,6 @@ abstract class Form
     }
 
     /**
-     * Add a FormField to the form's fields.
-     *
-     * @param FormField $field
-     * @return $this
-     */
-    protected function addField(Element $field)
-    {
-        if($field->getType() == 'radio') {
-            $this->fields[$field->getId()] = $field;
-             $field->group($field->getName());
-        } else {
-            $this->fields[$field->getName()] = $field;
-        }
-        return $this;
-    }
-
-    /**
-     * Create the FormField object.
-     *
-     * @param string $name
-     * @param string $type
-     * @param array  $options
-     * @return FormField
-     */
-    protected function makeField($name, $type = 'text', Closure $callable)
-    {   
-        $field = call_user_func([$this->formBuilder, $type], $name);
-
-        $callable($field);
-
-        return $field;
-    }
-
-    /**
      * Check if form has field.
      *
      * @param string $name
@@ -317,5 +252,69 @@ abstract class Form
     public function has($name)
     {
         return array_key_exists($name, $this->fields);
+    }
+
+    /**
+     * Add or Retrive Settings of the form.
+     *
+     * @param array|null $settings
+     * @return array|Form
+     */
+    public function settings($settings = null)
+    {
+        if (is_null($settings)) {
+            return $this->settings;
+        }
+
+        $this->settings = $settings;
+        return $this;
+    }
+
+    /**
+     * Get the field error.
+     *
+     * @param string $field
+     * @return string
+     */
+    public function getError($field)
+    {
+        if (! $this->hasError($field)) {
+            return null;
+        }
+        return $this->getErrors()->first($field);
+    }
+
+    /**
+    * Check if the field has error.
+    *
+    * @param string $field
+    * @return bool
+    */
+    public function hasError($field)
+    {
+        if (! $this->hasErrors()) {
+            return false;
+        }
+        return $this->getErrors()->has($field);
+    }
+
+    /**
+    * Check if session has error.
+    *
+    * @return bool
+    */
+    protected function hasErrors()
+    {
+        return $this->session->has('errors');
+    }
+
+    /**
+     * Get the error.
+     *
+     * @return string
+     */
+    protected function getErrors()
+    {
+        return $this->hasErrors() ? $this->session->get('errors') : null;
     }
 }

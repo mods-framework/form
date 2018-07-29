@@ -37,7 +37,7 @@ class Label extends Element
     public function getLabelTxt()
     {
         return $this->label;
-    }    
+    }
 
     public function forId($name)
     {

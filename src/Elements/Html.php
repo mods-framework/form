@@ -19,9 +19,9 @@ class Html extends FormControl
         return sprintf($this->template, $this->content());
     }
 
-    public function content($content = null){
-
-        if(is_null($content)) {
+    public function content($content = null)
+    {
+        if (is_null($content)) {
             return $this->content;
         }
 

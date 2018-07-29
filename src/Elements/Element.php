@@ -18,7 +18,7 @@ abstract class Element
 
     public function getAttribute($attribute)
     {
-        if(!isset($this->attributes[$attribute])) {
+        if (!isset($this->attributes[$attribute])) {
             return null;
         }
         return $this->attributes[$attribute];
@@ -85,7 +85,7 @@ abstract class Element
 
     public function getClass()
     {
-         return $this->getAttribute('class');
+        return $this->getAttribute('class');
     }
 
     public function id($id)
